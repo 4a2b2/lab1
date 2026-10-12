@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>实验一：文本分类 — 实验报告</title>
+<style>
+  @page { size: A4; margin: 18mm 20mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "SimSun", "Noto Serif SC", serif;
+    font-size: 12pt;
+    line-height: 1.65;
+    color: #2c3e50;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 15mm 18mm;
+  }
+  h1 {
+    font-size: 18pt;
+    text-align: center;
+    margin-bottom: 4pt;
+    color: #1a3c5e;
+    letter-spacing: 1px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 10.5pt;
+    color: #7f8c8d;
+    margin-bottom: 14pt;
+    border-bottom: 1.5px solid #d5dbdb;
+    padding-bottom: 8pt;
+  }
+  h2 {
+    font-size: 13pt;
+    color: #1a3c5e;
+    margin-top: 12pt;
+    margin-bottom: 5pt;
+    padding-left: 8pt;
+    border-left: 3px solid #4C9BE2;
+  }
+  h3 {
+    font-size: 11.5pt;
+    color: #2c3e50;
+    margin-top: 8pt;
+    margin-bottom: 4pt;
+  }
+  p { margin-bottom: 4pt; text-align: justify; }
+  .indent { text-indent: 2em; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 6pt 0;
+    font-size: 10.5pt;
+  }
+  th, td {
+    border: 1px solid #d5dbdb;
+    padding: 4pt 6pt;
+    text-align: center;
+  }
+  th { background: #eaf2f8; color: #1a3c5e; font-weight: 600; }
+  tr:nth-child(even) { background: #f8fafc; }
+  .fig {
+    text-align: center;
+    margin: 8pt 0;
+  }
+  .fig img {
+    max-width: 88%;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+  }
+  .fig-cap {
+    font-size: 10pt;
+    color: #7f8c8d;
+    margin-top: 3pt;
+  }
+  .highlight {
+    background: #fef9e7;
+    padding: 1pt 4pt;
+    border-radius: 3px;
+  }
+  ul, ol { margin-left: 2em; margin-bottom: 4pt; }
+  li { margin-bottom: 2pt; }
+  .two-col { display: flex; gap: 12pt; }
+  .two-col > div { flex: 1; }
+  .page-break { page-break-before: always; }
+  .info-box {
+    background: #f8fafc;
+    border: 1px solid #d5dbdb;
+    border-radius: 4px;
+    padding: 6pt 10pt;
+    margin: 6pt 0;
+    font-size: 10.5pt;
+  }
+  code {
+    font-family: "Consolas", monospace;
+    font-size: 10pt;
+    background: #f4f6f7;
+    padding: 0 3px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+
+<h1>当代人工智能实验课 — 实验一：文本分类</h1>
+<div class="subtitle">
+  课程：当代人工智能 &nbsp;|&nbsp; 实验一：文本分类 &nbsp;|&nbsp; 日期：2025年10月
+</div>
+
+<h2>一、实验目标</h2>
+<p class="indent">本实验以新闻文本10分类为任务，旨在：(1) 理解文本分类的基本概念与完整流程；(2) 实践文本预处理与 TF-IDF 特征提取；(3) 掌握朴素贝叶斯、支持向量机、逻辑回归、多层感知机四种经典分类算法；(4) 学习如何基于验证集评估、调参与比较不同模型。</p>
+
+<h2>二、数据集介绍</h2>
+<p class="indent">数据集为新闻文本10分类数据集，已预划分为训练集（7368条）和无标签测试集（2457条）。训练集包含 text 与 target 两个字段，target 取值 0–9，各类别样本数基本均衡（705–747条）。</p>
+<div class="fig">
+  <img src="figures/class_distribution.png" alt="类别分布">
+  <div class="fig-cap">图1 训练集各类别样本分布</div>
+</div>
+
+<h2>三、实验方法</h2>
+
+<h3>3.1 文本预处理</h3>
+<p class="indent">原始文本为新闻组邮件格式，包含 From、Subject、Organization、Lines 等邮件头字段及正文。预处理步骤如下：</p>
+<ul>
+  <li><b>提取 Subject</b>：Subject 行通常包含高度区分性的主题信息，单独提取并拼接到正文前；</li>
+  <li><b>去除邮件头</b>：以首个空行为分隔，删除 From/Organization/Lines 等头字段；</li>
+  <li><b>去除引用行</b>：删除以 &gt; 开头的引用文本，避免噪声干扰；</li>
+  <li><b>去除邮箱地址</b>：用正则表达式移除 email 地址；</li>
+  <li><b>符号清洗与小写化</b>：仅保留英文字母，合并多余空格，统一转小写。</li>
+</ul>
+
+<h3>3.2 TF-IDF 特征工程</h3>
+<p class="indent">采用 scikit-learn 的 <code>TfidfVectorizer</code> 将文本转为数值向量。核心参数为 <code>max_features</code>（词表最大规模）和 <code>ngram_range</code>（n-gram 范围）。为确定最优配置，以 SVM(linear, C=10) 为基准模型，对比了三种 TF-IDF 配置在验证集上的表现：</p>
+<table>
+  <tr><th>TF-IDF 配置</th><th>词表规模</th><th>n-gram</th><th>验证集准确率</th><th>加权 F1</th></tr>
+  <tr><td>配置 A</td><td>5,000</td><td>(1,1)</td><td>0.8107</td><td>0.8111</td></tr>
+  <tr><td>配置 B</td><td>10,000</td><td>(1,1)</td><td>0.8270</td><td>0.8275</td></tr>
+  <tr><td>配置 C（采用）</td><td>20,000</td><td>(1,2)</td><td>0.8514</td><td>0.8517</td></tr>
+</table>
+<p class="indent">结果显示，更大的词表与二元语法（bigram）能显著提升分类性能，因为 bigram 能捕获短语级别的语义信息。最终选用 <code>max_features=20000, ngram_range=(1,2), stop_words='english'</code>。</p>
+
+<h3>3.3 分类模型</h3>
+<p class="indent">本实验实现并比较以下四种模型：</p>
+<ul>
+  <li><b>朴素贝叶斯（MultinomialNB）</b>：基于贝叶斯定理，假设特征条件独立，计算高效，是文本分类的经典基线。</li>
+  <li><b>支持向量机（SVC, linear）</b>：在特征空间中寻找最大间隔超平面。线性核适合高维稀疏的文本数据。</li>
+  <li><b>逻辑回归（LogisticRegression）</b>：通过 sigmoid 函数将线性组合映射为概率，工业界广泛使用的分类器。</li>
+  <li><b>多层感知机（MLPClassifier）</b>：由输入层、隐藏层和输出层组成的神经网络，通过非线性激活学习复杂模式。</li>
+</ul>
+
+<h2>四、实验设计</h2>
+<p class="indent">遵循"先划分再处理、仅用训练集拟合"的原则，实验流程如下：</p>
+<ol>
+  <li><b>数据划分</b>：对训练集按 80:20 进行分层抽样划分，得到训练子集 5894 条、验证集 1474 条；</li>
+  <li><b>特征提取</b>：仅用训练子集拟合 TF-IDF 向量化器，再用同一规则 transform 验证集和测试集；</li>
+  <li><b>基线实验</b>：用各模型默认参数训练，建立性能基线；</li>
+  <li><b>超参数调优</b>：在验证集上搜索 SVM 的 C、LR 的 C、MLP 的隐藏层结构，固定其他条件不变；</li>
+  <li><b>模型选择</b>：以验证集准确率为标准选择最优模型，在全量训练集上重新训练后预测测试集。</li>
+</ol>
+<p class="indent">全程固定随机种子 <code>RANDOM_STATE=42</code>，保证结果可复现。</p>
+
+<h2>五、结果与分析</h2>
+
+<h3>5.1 基线实验结果</h3>
+<div class="fig">
+  <img src="figures/baseline_comparison.png" alt="基线对比">
+  <div class="fig-cap">图2 四种模型基线（默认参数）验证集性能对比</div>
+</div>
+<table>
+  <tr><th>模型</th><th>验证集准确率</th><th>加权 F1</th></tr>
+  <tr><td>NaiveBayes</td><td>0.8562</td><td>0.8562</td></tr>
+  <tr><td>SVM (linear, C=1)</td><td>0.8575</td><td>0.8583</td></tr>
+  <tr><td>LogisticRegression</td><td>0.8623</td><td>0.8625</td></tr>
+  <tr><td>MLP (100,)</td><td>0.8670</td><td>0.8674</td></tr>
+</table>
+<p class="indent">基线阶段，四种模型准确率均在 85%–87% 之间，差距不大。MLP 表现最优（0.8670），朴素贝叶斯最低（0.8562）但训练速度最快。LR 和 SVM 处于中间水平。</p>
+
+<h3>5.2 超参数调优</h3>
+
+<div class="two-col">
+<div>
+<h4>SVM 正则化参数 C</h4>
+<div class="fig">
+  <img src="figures/svm_tuning.png" alt="SVM调优">
+  <div class="fig-cap">图3 SVM 参数 C 调优曲线</div>
+</div>
+</div>
+<div>
+<h4>LR 正则化参数 C</h4>
+<div class="fig">
+  <img src="figures/lr_tuning.png" alt="LR调优">
+  <div class="fig-cap">图4 LR 参数 C 调优曲线</div>
+</div>
+</div>
+</div>
+
+<table>
+  <tr><th>模型</th><th>参数</th><th>验证集准确率</th><th>加权 F1</th><th>趋势分析</th></tr>
+  <tr><td rowspan="4">SVM</td><td>C=0.1</td><td>0.7062</td><td>0.7422</td><td>欠拟合，决策边界过宽</td></tr>
+  <tr><td>C=1</td><td>0.8575</td><td>0.8583</td><td>最佳</td></tr>
+  <tr><td>C=10</td><td>0.8514</td><td>0.8517</td><td>开始下降</td></tr>
+  <tr><td>C=100</td><td>0.8256</td><td>0.8286</td><td>过拟合，泛化变差</td></tr>
+  <tr><td rowspan="4">LR</td><td>C=0.1</td><td>0.8331</td><td>0.8323</td><td>正则化过强</td></tr>
+  <tr><td>C=1</td><td>0.8623</td><td>0.8625</td><td>—</td></tr>
+  <tr><td>C=10</td><td>0.8684</td><td>0.8683</td><td>最佳</td></tr>
+  <tr><td>C=100</td><td>0.8657</td><td>0.8654</td><td>轻微下降</td></tr>
+  <tr><td rowspan="4">MLP</td><td>(50,)</td><td>0.8684</td><td>0.8686</td><td>最佳（与LR持平）</td></tr>
+  <tr><td>(100,)</td><td>0.8670</td><td>0.8674</td><td>—</td></tr>
+  <tr><td>(200,)</td><td>0.8677</td><td>0.8681</td><td>—</td></tr>
+  <tr><td>(100,50)</td><td>0.8636</td><td>0.8644</td><td>两层网络反而下降</td></tr>
+</table>
+
+<p class="indent"><b>分析</b>：(1) SVM 随 C 增大呈现先升后降的典型正则化曲线，C=0.1 时严重欠拟合，C=100 时过拟合。(2) LR 在 C=10 时达到最优 0.8684，优于 SVM 最佳值，说明 LR 的正则化机制在此数据上更灵活。(3) MLP 的隐藏层结构影响较小，(50,) 即可达到与 LR(C=10) 持平的 0.8684；更深网络 (100,50) 反而下降，说明模型复杂度过高时易过拟合。综合考虑模型复杂度与性能，选择 <span class="highlight">LR(C=10)</span> 作为最终模型。</p>
+
+<h3>5.3 最优模型详细评估</h3>
+<div class="fig">
+  <img src="figures/confusion_matrix.png" alt="混淆矩阵" style="max-width: 65%;">
+  <div class="fig-cap">图5 LR(C=10) 验证集混淆矩阵</div>
+</div>
+<p class="indent">从分类报告看，类别 9（准确率 0.9609）和类别 5（0.9508）最易分类，而类别 2（0.7655）和类别 7（0.7835）最易混淆。类别 0、1、2、7 之间存在较多误分，推测这些类别在主题上有重叠（如均为计算机相关领域）。整体 macro F1 为 0.8684，各类别性能较均衡。</p>
+
+<h2>六、思考与讨论</h2>
+
+<h3>6.1 为什么 SVM 和逻辑回归在文本数据上表现好？</h3>
+<p class="indent">文本经 TF-IDF 向量化后是<span class="highlight">高维稀疏</span>的（20000维，大部分为0）。SVM 和 LR 都是线性模型，在高维空间中线性可分的概率更高；同时稀疏性使得内积计算高效。此外，线性模型的参数较少，在训练样本有限时不容易过拟合，泛化能力强。相比之下，MLP 的非线性能力在高维稀疏输入上优势不明显，反而因参数多而有过拟合风险。</p>
+
+<h3>6.2 MLP 能否通过调整结构进一步提升？</h3>
+<p class="indent">实验结果显示，MLP 从 (50,) 到 (200,) 性能变化不大（0.8684→0.8677），增加到两层 (100,50) 反而下降至 0.8636。这表明在当前 TF-IDF 特征表示下，模型容量已非瓶颈，特征表示才是限制因素。继续增大网络会加剧过拟合风险。要进一步提升，可考虑：(1) 使用 dropout 或增大 alpha 正则化；(2) 采用更好的特征表示（如 Word2Vec/BERT）。</p>
+
+<h3>6.3 其他文本表示方法</h3>
+<ul>
+  <li><b>词袋模型（BoW）</b>：仅统计词频，丢失词序信息，TF-IDF 是其加权改进。</li>
+  <li><b>Word2Vec / GloVe</b>：通过无监督预训练获得词向量，能捕获语义相似性，但丢失了文档级词频信息。</li>
+  <li><b>BERT / Transformer</b>：基于自注意力机制，能捕获上下文语义和长距离依赖，是当前最优方法。但计算成本远高于 TF-IDF+线性模型。</li>
+</ul>
+
+<h2>七、可复现性说明</h2>
+<div class="info-box">
+  <b>随机种子</b>：固定 np.random.seed(42) 及各模型 random_state=42<br>
+  <b>数据划分</b>：train_test_split(test_size=0.2, stratify=y, random_state=42)<br>
+  <b>环境</b>：Python 3.10, scikit-learn 1.7.2, numpy 2.3.5, pandas 2.3.3<br>
+  <b>运行方式</b>：<code>cd data_project1 && python main.py</code><br>
+  <b>输出文件</b>：predictions.csv（测试集预测）、figures/（可视化图表）
+</div>
+
+<h2>八、结论</h2>
+<p class="indent">本实验完成了新闻文本10分类任务，比较了四种经典模型在不同超参数下的验证集性能。最优模型为 LogisticRegression(C=10)，验证集准确率 86.84%，加权 F1 为 0.8683。实验发现：(1) TF-IDF 的词表规模和 n-gram 范围对性能影响显著，bigram 特征优于 unigram；(2) 线性模型（SVM、LR）在高维稀疏文本特征上表现稳定且高效；(3) MLP 的网络结构对性能影响较小，过深的网络易过拟合。实验局限性在于仅使用了 TF-IDF 特征，未来可尝试预训练语言模型以进一步提升分类性能。</p>
+
+</body>
+</html>
